@@ -10,41 +10,7 @@ class AuthRoutes extends BaseRoutes {
             validateCredentials(registerSchema),
             tryCatch(AuthController.register)
         ]);
-        this.router.post("/login", [
-            validateCredentials(loginSchema),
-            tryCatch(AuthController.login)
-        ]);
-        this.router.post("/logout", [
-            validateCredentials(logoutSchema),
-            tryCatch(AuthController.logout)
-        ]);
-        this.router.post("/forgotpassword", [
-            validateCredentials(forgotpasswordSchema),
-            tryCatch(AuthController.forgotpassword)
-        ]);
-        this.router.post("/resetpassword", [
-            validateCredentials(resetpasswordSchema),
-            tryCatch(AuthController.resetpassword)
-        ]);
-        this.router.post("/verifyemail", [
-            validateCredentials(verifyemailSchema),
-            tryCatch(AuthController.verifyemail)
-        ]);
-        this.router.post("/resendverification", [
-            validateCredentials(resendverificationSchema),
-            tryCatch(AuthController.resendverification)
-        ]);
-        this.router.put("/updateprofile", [
-            validateCredentials(forgotpasswordSchema),
-            tryCatch(AuthController.reset-password)
-        ]);
-        this.router.delete("/account", [
-            validateCredentials(accountSchema),
-            tryCatch(AuthController.account)
-        ])
-
     }
 }
 
 export default new AuthRoutes().router;
-    

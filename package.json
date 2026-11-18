@@ -9,12 +9,5 @@
     "joi": "^17.13.9",
     "morgan": "^1.12.1",
     "winston": "^3.19.0"
-  },
-  "devDependencies": {
-    "prisma": "^7.10.1"
-  },
-  "allowScripts": {
-    "prisma@7.10.1": true,
-    "@prisma/engines@7.10.1": true
   }
 }
