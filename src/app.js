@@ -18,11 +18,9 @@ class OurExpressApplication {
         this.port = port;
 
         this.configureAssets();
-        this.setupRoute();
         this.setupMiddlewares([
-            errorHandler,
             express.json(),
-            express.urlencoded(),
+            express.urlencoded({ extended: true }),
             apicache.middleware("5 minutes"),
         ]);
         this.setupLibrary([
@@ -30,6 +28,8 @@ class OurExpressApplication {
             compression(),
             helmet(),
         ]);
+        this.setupRoute();
+        this.app.use(errorHandler);
     }
 
     setupRoute(){

@@ -1,4 +1,4 @@
-const validateCredentials = (schema) => (req, res, next) => {
+const  validateCredentials = (schema) => (req, res, next) => {
     const validated = schema.validate(req.body, {
         abortEarly: false,
         errors: {
