@@ -1,6 +1,21 @@
 import AuthService from "./auth_service.js";
 import { successResponse } from "../../utils/response.js";
 
+const refreshCookieOptions = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/api/v1/auth",
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+};
+
+const refreshCookieClearOptions = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/api/v1/auth",
+};
+
 class AuthController {
     async register(req, res) {
         const data = req.body;
@@ -16,10 +31,17 @@ class AuthController {
     }
 
     async login(req, res) {
-        const data = req.body;
-        const message = await AuthService.login(data);
+        const data = req.body
+        const result = await AuthService.login(data);
+        const { refreshToken, ...responseData } = result;
 
-        return successResponse(res, "User logged in successfully", message);
+        res.cookie("refresh_token", refreshToken, refreshCookieOptions);
+
+        return successResponse(
+            res,
+            "User logged in successfully",
+            responseData
+        );
     }
 
     async logout(req, res) {
@@ -77,6 +99,28 @@ class AuthController {
 
         return successResponse(res, "profile dibuka", message);
         
+    }
+    async refresh(req, res) {
+        const result = await AuthService.refresh(
+            req.cookies?.refresh_token
+        );
+
+        const { refreshToken, ...responseData } = result;
+
+        res.cookie("refresh_token", refreshToken, refreshCookieOptions);
+
+        return successResponse(
+            res,
+            "Token refreshed successfully",
+            responseData
+        );
+    }
+    async logout(req, res) {
+        await AuthService.logout(req.cookies?.refresh_token);
+
+        res.clearCookie("refresh_token", refreshCookieClearOptions);
+
+        return successResponse(res, "User logged out successfully")
     }
 }
 

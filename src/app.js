@@ -8,6 +8,7 @@ import morgan from "morgan";
 import compression from "compression";
 import helmet from "helmet";
 import BaseError from "./base_classes/base_error.js";
+import cookieParser from "cookie-parser";
 
 class OurExpressApplication {
     app;
@@ -22,6 +23,7 @@ class OurExpressApplication {
             express.json(),
             express.urlencoded({ extended: true }),
             apicache.middleware("5 minutes"),
+            cookieParser(),
         ]);
         this.setupLibrary([
             process.env.NODE_ENV === "development" ? morgan("dev") : "",

@@ -21,6 +21,7 @@ model User {
   otpExpiresAt DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+  sessions Session[]
 }
 
 model OtpCode {
@@ -33,4 +34,17 @@ model OtpCode {
     createdAt DateTime @default(now())
 
     @@index([email, purpose])
+}
+
+model Session {
+  id               String    @id @default(cuid())
+  userId           Int
+  refreshTokenHash String    @unique
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  createdAt        DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
