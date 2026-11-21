@@ -3,6 +3,23 @@ import bcrypt from "bcrypt";
 import prisma from "../../libs/prisma.js";
 import { Prisma } from "@prisma/client";
 import jwt from "jsonwebtoken";
+import { createHash, hash, randomBytes } from "node:crypto";
+
+const hashRefreshToken = (token) =>
+    createHash("sha256").update(token).digest("hex");
+
+const createRefreshToken = () =>
+    randomBytes(48).toString("base64url");
+
+const createAccessToken = (userId) =>
+    jwt.sign(
+        { userId },
+        process.env.JWT_SECRET,
+        { expiresIn: process.env.JWT_EXPIRES_IN || "15m" }
+    );
+
+const refreshTokenExpiry = () =>
+    new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
 class AuthService {
     async register(data) {
@@ -74,18 +91,23 @@ class AuthService {
             throw BaseError.unauthorized("Email atau password salah");
         }
         
-        const token = jwt.sign(
-        { userId: user.id },
-        process.env.JWT_SECRET,
-        { expiresIn: process.env.JWT_EXPIRES_IN || "1h" }
-        );
+        const refreshToken = createRefreshToken();
+
+        await prisma.session.create({
+            data: {
+                userId: user.id,
+                refreshTokenHash: hashRefreshToken(refreshToken),
+                expiresAt: refreshTokenExpiry(),
+            },
+        });
 
         return {
             id: user.id,
             name: user.name,
             email: user.email,
-            token
-        }
+            token: createAccessToken(user.id),
+            refreshToken,
+        };
         
         
     }
@@ -113,6 +135,69 @@ class AuthService {
         }
 
         return user;
+    }
+
+    async refresh(rawRefreshToken) {
+        if (!rawRefreshToken) {
+            throw BaseError.unauthorized("Refresh token tidak ditemukan");
+        }
+
+        const oldHash = hashRefreshToken(rawRefreshToken);
+        const now = new Date();
+
+        const session = await prisma.session.findUnique({
+            where: { refreshTokenHash: oldHash },
+            include: { user: true },
+        });
+
+        if (
+            !session ||
+            session.revokedAt ||
+            session.expiresAt <= now
+        ) {
+            throw BaseError.unauthorized("Sesi tidak valid atau sudah kedaluwarsa");
+        }
+
+        const newRefreshToken = createRefreshToken();
+
+        const updated = await prisma.session.updateMany({
+            where: {
+                id: session.id,
+                refreshTokenHash: oldHash,
+                revokedAt: null,
+                expiresAt: { gt: now },
+            },
+            data: {
+                refreshTokenHash: hashRefreshToken(newRefreshToken),
+                expiresAt: refreshTokenExpiry(),
+            },
+        });
+
+        if (updated.count !== 1) {
+            throw BaseError.unauthorized("Refresh token sudah digunakan atau tidak valid");
+        }
+
+        return {
+            id: session.user.id,
+            name: session.user.name,
+            email: session.user.email,
+            token: createAccessToken(session.user.id),
+            refreshToken: newRefreshToken,
+        };
+    }
+    async logout(rawRefreshToken){
+        if(rawRefreshToken) {
+            await prisma.session.updateMany({
+                where:{
+                    refreshTokenHash: hashRefreshToken(rawRefreshToken),
+                    revokedAt: null,
+                },
+                data:{
+                    revokedAt: new Date(),
+                }
+            })
+        }
+        return {loggedOut: true}
     }
 }
 

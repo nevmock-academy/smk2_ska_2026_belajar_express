@@ -28,7 +28,6 @@ class AuthRoutes extends BaseRoutes {
             tryCatch(AuthController.login)
         ]);
         this.router.post("/logout", [
-            validateCredentials(logoutSchema),
             tryCatch(AuthController.logout)
         ]);
         this.router.post("/forgotpassword", [
@@ -59,7 +58,10 @@ class AuthRoutes extends BaseRoutes {
             validateCredentials(profileSchema),
             authMiddleware,
             tryCatch(AuthController.profile)
-        ])
+        ]);
+        this.router.post("/refresh", [
+            tryCatch(AuthController.refresh)
+        ]);
     }
 }
 
