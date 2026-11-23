@@ -166,7 +166,7 @@ class AuthService {
         });
 
         if (
-            lastOtp && Date.now - lastOtp.createdAt.getTime() < OTP_RESEND_COOLDOWN_MS
+            lastOtp && Date.now() - lastOtp.createdAt.getTime() < OTP_RESEND_COOLDOWN_MS
         ) {
             return { message: "Jika email terdaftar, kode OTP telah dikirim. Kode baru dapat diminta setelah 60 detik."};
         }
@@ -210,7 +210,7 @@ class AuthService {
                     `<p>Jika kamu tidak merasa meminta reset password, abaikan email ini.</p>`
             });
         } catch (error) {
-            logger.error('Gagal kirim email reset password: ${error.message}')
+            logger.error(`Gagal kirim email reset password: ${error.message}`);
         }
 
         return { message:  "Jika email terdaftar, kode OTP telah dikirim." };
@@ -218,8 +218,13 @@ class AuthService {
 
     // Reset Password
     async resetpassword(data) {
-        const { email, otp_verification, password } = data;
+        const { email, otp_verification, password, password_confirmation } = data;
+        
         const INVALID_OTP = "OTP tidak valid atau sudah kedaluwarsa";
+
+        if (password !== password_confirmation) {
+            throw BaseError.invalidParams("Konfirmasi password tidak cocok");
+        }
 
         // Ambil OTP terbaru yang masih aktif 
         const record = await prisma.otpCode.findFirst({
@@ -228,7 +233,7 @@ class AuthService {
                 purpose: RESET_PURPOSE,
                 usedAt: null,
                 expiresAt: {gt: new Date() },
-                attemps: { lt: OTP_MAX_ATTEMPTS },
+                attempts: { lt: OTP_MAX_ATTEMPTS },
             },
             orderBy: { createdAt: "desc" },
         });
@@ -266,6 +271,7 @@ class AuthService {
                 data: { password: hashedPassword },
             });
         });
+        return { message: "Password berhasil direset." };
     }
 
     async refresh(rawRefreshToken) {

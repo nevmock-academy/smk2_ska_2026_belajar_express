@@ -29,6 +29,7 @@ model OtpCode {
     email     String
     codeHash  String
     purpose   String
+    attempts  Int       @default(0)
     expiresAt DateTime
     usedAt    DateTime?
     createdAt DateTime @default(now())
