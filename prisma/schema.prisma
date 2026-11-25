@@ -49,3 +49,28 @@ model Session {
 
   @@index([userId])
 }
+
+enum CctvType {
+  RTSP
+  STREAM
+}
+
+enum CctvStatus {
+  ON
+  OFF
+}
+
+model Cctv {
+  id        Int        @id @default(autoincrement())
+  url       String
+  type      CctvType
+  latitude  Float
+  longitude Float
+  owner     String
+  status    CctvStatus @default(OFF)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([status])
+}
+

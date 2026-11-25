@@ -9,7 +9,7 @@ class UserRoutes extends BaseRoutes {
         this.router.get("/", [
             tryCatch(UserController.getAll),
         ]);
-
+        
         this.router.get("/:id", [
             tryCatch(UserController.getById),
         ]);
