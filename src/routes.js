@@ -7,6 +7,10 @@ const appsRoutes = [
     {
         path: "/auth",
         route: authRoutes
+    }, 
+    {
+        path: "/cctv",
+        route: cctvRoutes
     }
 ];
 
