@@ -11,6 +11,42 @@ datasource db {
   provider = "postgresql"
 }
 
+enum CctvType {
+  RTSP
+  STREAM
+}
+
+enum CctvStatus {
+  ON
+  OFF
+}
+
+enum StreamType {
+  HLS
+  RTSP
+  MJPEG
+  WEBRTC
+}
+
+enum VehicleType {
+  RODA_DUA
+  RODA_TIGA
+  RODA_EMPAT
+  TRUK_BUS
+}
+
+enum TrafficStatus {
+  UNKNOWN
+  LANCAR
+  NORMAL
+  PADAT
+  MACET
+}
+
+enum ViolationType {
+  CONTRAFLOW
+}
+
 model User {
   id           Int       @id @default(autoincrement())
   name         String
@@ -21,20 +57,20 @@ model User {
   otpExpiresAt DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
-  sessions Session[]
+  sessions     Session[]
 }
 
 model OtpCode {
-    id        Int      @id @default(autoincrement())
-    email     String
-    codeHash  String
-    purpose   String
-    attempts  Int       @default(0)
-    expiresAt DateTime
-    usedAt    DateTime?
-    createdAt DateTime @default(now())
+  id        Int       @id @default(autoincrement())
+  email     String
+  codeHash  String
+  purpose   String
+  attempts  Int       @default(0)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
 
-    @@index([email, purpose])
+  @@index([email, purpose])
 }
 
 model Session {
@@ -50,27 +86,59 @@ model Session {
   @@index([userId])
 }
 
-enum CctvType {
-  RTSP
-  STREAM
-}
-
-enum CctvStatus {
-  ON
-  OFF
-}
-
 model Cctv {
-  id        Int        @id @default(autoincrement())
-  url       String
-  type      CctvType
-  latitude  Float
-  longitude Float
-  owner     String
-  status    CctvStatus @default(OFF)
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  id              Int            @id @default(autoincrement())
+  code            String         @unique
+  streamUrl       String
+  type            CctvType
+  latitude        Float
+  longitude       Float
+  owner           String
+  status          CctvStatus     @default(OFF)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  streamType      StreamType     @default(HLS)
+  isActive        Boolean        @default(true)
+  aiEnabled       Boolean        @default(false)
+  aiConfig        Json?
+  currentStatus   TrafficStatus  @default(UNKNOWN)
+  statusUpdatedAt DateTime?      @db.Timestamptz(3)
+  lastHeartbeatAt DateTime?      @db.Timestamptz(3)
+  trafficCounts   TrafficCount[]
+  violations      Violation[]
 
   @@index([status])
 }
 
+model TrafficCount {
+  id            Int         @id @default(autoincrement())
+  cctvId        Int
+  bucketStart   DateTime    @db.Timestamptz(3)
+  bucketMinutes Int         @default(5)
+  vehicleType   VehicleType
+  count         Int
+  avgSpeedKmh   Float?
+  createdAt     DateTime    @default(now())
+  cctv          Cctv        @relation(fields: [cctvId], references: [id], onDelete: Cascade)
+
+  @@unique([cctvId, bucketStart, vehicleType])
+  @@index([bucketStart])
+}
+
+model Violation {
+  id          String        @id @default(cuid())
+  externalId  String        @unique
+  cctvId      Int
+  type        ViolationType @default(CONTRAFLOW)
+  vehicleType VehicleType
+  plateNumber String?
+  description String?
+  occurredAt  DateTime      @db.Timestamptz(3)
+  imageKey    String
+  confidence  Float?
+  createdAt   DateTime      @default(now())
+  cctv        Cctv          @relation(fields: [cctvId], references: [id], onDelete: Cascade)
+
+  @@index([cctvId, occurredAt])
+  @@index([occurredAt])
+}
