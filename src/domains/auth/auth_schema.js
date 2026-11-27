@@ -11,12 +11,12 @@ const registerSchema = Joi.object({
     password: Joi.string()
         .required()
         .min(8)
-        .pattern(/^(?=.*[A-Z])(?=.*[^a-zA-Z0-9]).{8,}$/)
+        .pattern(/^(?=.*[A-Z]).{8,}$/)
         .messages({
             "string.empty": "Passw2ord is required.",
             "string.min": "Password must be at least 8 characters long.",
             "string.pattern.base":
-                "Password must be at least 8 characters long, contain at least 1 uppercase letter, and 1 special character.",
+                "Password must be at least 8 characters long and contain at least 1 uppercase letter.",
         }),
     password_confirmation: Joi.string()
         .required()
@@ -55,12 +55,12 @@ const otp = Joi.string()
 const password = Joi.string()
     .required()
     .min(8)
-    .pattern(/^(?=.*[A-Z])(?=.*[^a-zA-Z0-9]).{8,}$/)
+    .pattern(/^(?=.*[A-Z]).{8,}$/)
     .messages({
         "string.empty": "Password is required.",
         "string.min": "Password must be at least 8 characters long.",
         "string.pattern.base":
-            "Password must be at least 8 characters long, contain at least 1 uppercase letter, and 1 special character.",
+            "Password must be at least 8 characters long and contain at least 1 uppercase letter.",
         "any.required": "Password is required.",
     });
 
