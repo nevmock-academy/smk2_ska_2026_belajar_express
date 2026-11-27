@@ -58,13 +58,18 @@ class AuthController {
         return successResponse(res, "Password reset request sent successfully", message);
     }
 
-    async resetpassword(req, res) {
-        const data = req.body;
-        const message = await AuthService.resetpassword(data);
+    async verifyotp(req, res) {
+        const result = await AuthService.verifyotp(req.tokenPayload, req.body);
 
-        return successResponse(res, "Password reset successfully", message);
+        return successResponse(res, "OTP verified successfully", result);
     }
 
+    async resetpassword(req, res) {
+        const result = await AuthService.resetpassword(req.tokenPayload, req.body);
+
+        return successResponse(res, "Password reset successfully", result);
+    }
+    
     async verifyemail(req, res) {
         const data = req.body;
         const message = await AuthService.verifyemail(data);

@@ -70,6 +70,8 @@ export const listCctvQuerySchema = Joi.object({
     status: Joi.string().valid("ON", "OFF"),
     type: Joi.string().valid("RTSP", "STREAM"),
     owner: Joi.string().trim().max(100),
+    search: Joi.string().trim().max(100),
+    sort: Joi.string().valid("asc", "desc").default("asc"),
 });
 
 export const cctvIdSchema = Joi.number().integer().positive().required().messages({

@@ -3,6 +3,7 @@ import validateCredentials from "../../middleware/validate_credentials_middlewar
 import tryCatch from "../../middleware/try_catcher.js";
 import AuthController from "./auth_controller.js"
 import authMiddleware from "../../middleware/auth_middleware.js";
+import resetTokenMiddleware from "../../middleware/reset_token_middleware.js";
 
 import {
     registerSchema,
@@ -15,6 +16,7 @@ import {
     updateprofileSchema,
     accountSchema,
     profileSchema,
+    verifyotpSchema
 } from "./auth_schema.js";
 
 class AuthRoutes extends BaseRoutes {
@@ -34,7 +36,13 @@ class AuthRoutes extends BaseRoutes {
             validateCredentials(forgotpasswordSchema),
             tryCatch(AuthController.forgotpassword)
         ]);
+        this.router.post("/verifyotp", [
+            resetTokenMiddleware("forgot_password"),
+            validateCredentials(verifyotpSchema),
+            tryCatch(AuthController.verifyotp)
+        ]);
         this.router.post("/resetpassword", [
+            resetTokenMiddleware("reset_password"),
             validateCredentials(resetpasswordSchema),
             tryCatch(AuthController.resetpassword)
         ]);

@@ -40,11 +40,12 @@ async function findOrFail(id) {
 }
 
 class CctvService {
-    async list({ page, limit, status, type, owner }) {
+    async list({ page, limit, status, type, owner, search, sort }) {
         const where = {
             ...(status && { status }),
             ...(type && { type }),
             ...(owner && { owner: { contains: owner, mode: "insensitive" } }),
+            ...(search && { code: { contains: search, mode: "insensitive"} }),
         };
 
         const [total, rows] = await prisma.$transaction([
@@ -123,6 +124,7 @@ class CctvService {
 
         return { id };
     }
+
 }
 
 export default new CctvService();

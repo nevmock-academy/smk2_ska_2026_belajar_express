@@ -1,5 +1,6 @@
 import express from "express";
 import authRoutes from "./domains/auth/auth_routes.js";
+import cctvRoutes from "./domains/cctv/cctv_routes.js"
 import userRoutes from "./domains/user/user_routes.js";
 
 const router = express.Router();

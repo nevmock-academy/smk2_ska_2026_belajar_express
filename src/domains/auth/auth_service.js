@@ -5,17 +5,33 @@ import mailer from "../../libs/mailer.js";
 import logger from "../../utils/logger.js";
 import { Prisma } from "@prisma/client";
 import jwt from "jsonwebtoken";
+import { createHash, randomBytes } from "node:crypto";
 import { generateOtp, hashOtp, verifyOtp } from "../../utils/otp.js"
 
-// Konfigurasi Forgot Password
+// Konfigurasi Verify dan Reset Password
 const RESET_PURPOSE = "reset_password";
 const OTP_TTL_MS = 5 * 60 * 1000;
 const OTP_RESEND_COOLDOWN_MS =  60 * 1000;
 const OTP_MAX_ATTEMPTS = 3;
-import { createHash, hash, randomBytes } from "node:crypto";
+const RESET_TOKEN_TTL = "10m";
+
+const escapeHtml = (str) =>
+    String(str).replace(/[&<>"']/g, (c) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
 
 const hashRefreshToken = (token) =>
     createHash("sha256").update(token).digest("hex");
+
+const passwordFingerprint = (passwordHash) =>
+    createHash("sha256").update(passwordHash).digest("hex");
+
+const signForgotToken = (email) =>
+    jwt.sign(
+        { email, purpose: "forgot_password" },
+        process.env.JWT_RESET_SECRET,
+        { expiresIn: Math.floor(OTP_TTL_MS / 1000) }
+    );
 
 const createRefreshToken = () =>
     randomBytes(48).toString("base64url");
@@ -31,7 +47,7 @@ const refreshTokenExpiry = () =>
     new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
 class AuthService {
-    // RegisteR
+    // Register
     async register(data) {
         const { name, email, password } = data;
 
@@ -153,10 +169,13 @@ class AuthService {
     async forgotpassword(data) {
         const { email } = data;
 
-        const user = await prisma.user.findUnique({ where: { email }});
+        const user = await prisma.user.findUnique({ where: { email } });
 
         if (!user) {
-            return {message: "Jika email terdaftar, kode OTP telah dikirim."};
+            return {
+                message: "Jika email terdaftar, kode OTP telah dikirim.",
+                forgot_token: signForgotToken(email),
+            };
         }
 
         // Cegah spam email
@@ -166,19 +185,23 @@ class AuthService {
         });
 
         if (
-            lastOtp && Date.now() - lastOtp.createdAt.getTime() < OTP_RESEND_COOLDOWN_MS
+            lastOtp &&
+            Date.now() - lastOtp.createdAt.getTime() < OTP_RESEND_COOLDOWN_MS
         ) {
-            return { message: "Jika email terdaftar, kode OTP telah dikirim. Kode baru dapat diminta setelah 60 detik."};
+            return {
+                message: "Jika email terdaftar, kode OTP telah dikirim. Kode baru dapat diminta setelah 60 detik.",
+                forgot_token: signForgotToken(email),
+            };
         }
 
         const otp = generateOtp();
         const codeHash = await hashOtp(otp);
 
-        // Menghanguskan OTP lama yang belum diapakai, lalu buat baru
+        // Hanguskan OTP lama yang belum dipakai, lalu buat yang baru
         await prisma.$transaction([
             prisma.otpCode.updateMany({
-                where: {email, purpose: RESET_PURPOSE, usedAt: null },
-                data: { usedAt: new Date() }, 
+                where: { email, purpose: RESET_PURPOSE, usedAt: null },
+                data: { usedAt: new Date() },
             }),
             prisma.otpCode.create({
                 data: {
@@ -190,8 +213,8 @@ class AuthService {
             }),
         ]);
 
-        try {
-            await mailer.sendMail({
+        mailer
+            .sendMail({
                 from: process.env.SMTP_FROM,
                 to: email,
                 subject: "Kode OTP Reset Password",
@@ -201,38 +224,37 @@ class AuthService {
                     `Kode berlaku ${OTP_TTL_MS / 60000} menit. ` +
                     `Jangan bagikan kode ini ke siapa pun.\n\n` +
                     `Jika kamu tidak merasa meminta reset password, abaikan email ini.`,
-                html: 
-                    `<p>Halo ${user.name},</p>` +
+                html:
+                    `<p>Halo ${escapeHtml(user.name)},</p>` +
                     `<p>Kode OTP untuk reset password kamu:</p>` +
                     `<h2 style="letter-spacing:4px">${otp}</h2>` +
                     `<p>Kode berlaku ${OTP_TTL_MS / 60000} menit. ` +
                     `Jangan bagikan kode ini ke siapa pun.</p>` +
-                    `<p>Jika kamu tidak merasa meminta reset password, abaikan email ini.</p>`
+                    `<p>Jika kamu tidak merasa meminta reset password, abaikan email ini.</p>`,
+            })
+            .catch((error) => {
+                logger.error(`Gagal kirim email reset password: ${error.message}`);
             });
-        } catch (error) {
-            logger.error(`Gagal kirim email reset password: ${error.message}`);
-        }
 
-        return { message:  "Jika email terdaftar, kode OTP telah dikirim." };
+        return {
+            message: "Jika email terdaftar, kode OTP telah dikirim.",
+            forgot_token: signForgotToken(email),
+        };
     }
 
-    // Reset Password
-    async resetpassword(data) {
-        const { email, otp_verification, password, password_confirmation } = data;
-        
+    // Verify OTP 
+    async verifyotp(payload, data) {
+        const { otp_verification } = data;
+        const email = payload.email;
+
         const INVALID_OTP = "OTP tidak valid atau sudah kedaluwarsa";
 
-        if (password !== password_confirmation) {
-            throw BaseError.invalidParams("Konfirmasi password tidak cocok");
-        }
-
-        // Ambil OTP terbaru yang masih aktif 
         const record = await prisma.otpCode.findFirst({
             where: {
-                email, 
+                email,
                 purpose: RESET_PURPOSE,
                 usedAt: null,
-                expiresAt: {gt: new Date() },
+                expiresAt: { gt: new Date() },
                 attempts: { lt: OTP_MAX_ATTEMPTS },
             },
             orderBy: { createdAt: "desc" },
@@ -245,32 +267,75 @@ class AuthService {
         const isOtpValid = await verifyOtp(otp_verification, record.codeHash);
 
         if (!isOtpValid) {
-            // Mencatat percobaan gagal
             await prisma.otpCode.update({
                 where: { id: record.id },
-                data: { attempts: {increment: 1} },
+                data: { attempts: { increment: 1 } },
             });
             throw BaseError.badRequest(INVALID_OTP);
+        }
+
+        const user = await prisma.user.findUnique({ where: { email } });
+        if (!user) {
+            throw BaseError.badRequest(INVALID_OTP);
+        }
+
+        // OTP hanya boleh dipakai sekali
+        const claimed = await prisma.otpCode.updateMany({
+            where: { id: record.id, usedAt: null },
+            data: { usedAt: new Date() },
+        });
+        if (claimed.count === 0) {
+            throw BaseError.badRequest(INVALID_OTP);
+        }
+
+        const resetToken = jwt.sign(
+            {
+                sub: user.id,
+                purpose: "reset_password",
+                pwd: passwordFingerprint(user.password),
+            },
+            process.env.JWT_RESET_SECRET,
+            { expiresIn: RESET_TOKEN_TTL }
+        );
+
+        return { reset_token: resetToken, expires_in: 600 };
+    }
+
+    // Reset Password
+    async resetpassword(reset, data) {
+        const { password, password_confirmation } = data;
+
+        const INVALID_TOKEN = "Reset token tidak valid atau sudah kedaluwarsa";
+
+        if (password !== password_confirmation) {
+            throw BaseError.invalidParams("Konfirmasi password tidak cocok");
+        }
+
+        const user = await prisma.user.findUnique({ where: { id: reset.sub } });
+        if (!user) {
+            throw BaseError.badRequest(INVALID_TOKEN);
+        }
+
+        // Token hanya valid selama password belum berubah (jadi sekali pakai)
+        if (reset.pwd !== passwordFingerprint(user.password)) {
+            throw BaseError.badRequest(INVALID_TOKEN);
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
 
         await prisma.$transaction(async (tx) => {
-            // Menandai OTP terpakai, kalau sudah terpakai request lain -> gagal
-            const claimed = await tx.otpCode.updateMany({
-                where: { id: record.id, usedAt: null },
-                data: { usedAt: new Date() },
-            });
-
-            if (claimed.count === 0) {
-                throw BaseError.badRequest(INVALID_OTP);
-            }
-
             await tx.user.update({
-                where: { email },
+                where: { id: user.id },
                 data: { password: hashedPassword },
             });
+
+            // Password berubah -> semua sesi login lama keluar
+            await tx.session.updateMany({
+                where: { userId: user.id, revokedAt: null },
+                data: { revokedAt: new Date() },
+            });
         });
+
         return { message: "Password berhasil direset." };
     }
 
@@ -322,6 +387,7 @@ class AuthService {
             refreshToken: newRefreshToken,
         };
     }
+
     async logout(rawRefreshToken){
         if(rawRefreshToken) {
             await prisma.session.updateMany({
